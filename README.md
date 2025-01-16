@@ -20,20 +20,7 @@ This project implements a movie recommendation system using Flask, where users c
 Download the dataset :https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata?select=tmdb_5000_movies.csv
 
 ## Project Structure:
-Movie-Recommendation/
-│
-├── Model/
-│   ├── movies_list.pkl       
-│   └── similarity.pkl       
-│
-├── templates/
-│   ├── index.html           
-│   ├── about.html           
-│   ├── contact.html        
-│   └── recommendation.html 
-│
-├── app.py              
-└── requirements.txt        dependencies.
+
 
 
 
