@@ -1,40 +1,79 @@
-from flask import Flask, render_template, request
-import pandas as pd
-import numpy as np
+from flask import Flask, request, render_template
 import pickle
+import requests
+import pandas as pd
+
+# Load movie data and similarity matrix
+movies = pickle.load(open('C:\\Users\\mayan\\Videos\\Movie-Recommendation\\Model\\movies_list.pkl', 'rb'))
+similarity = pickle.load(open('C:\\Users\\mayan\\Videos\\Movie-Recommendation\\Model\\similarity.pkl', 'rb'))
+
+# Function to fetch the movie poster
+def fetch_poster(movie_name):
+    url = f"https://api.themoviedb.org/3/search/movie?api_key=450be0533dbb55a44add322a9abdbcb4&query={movie_name}"
+    response = requests.get(url).json()
+    if 'results' in response and len(response['results']) > 0:
+        poster_path = response['results'][0].get('poster_path')
+        if poster_path:
+            full_path = f"https://image.tmdb.org/t/p/w500{poster_path}"
+            return full_path
+    return "https://via.placeholder.com/500x750?text=Poster+Not+Found"
+
+# Function to recommend movies
+def recommend(Movie):
+    index = movies[movies['title'] == Movie].index[0]
+    l = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
+    rmn = []
+    rmp = []
+    for i in l[1:5]:
+        movie_title = movies.iloc[i[0]].title
+        rmp.append(fetch_poster(movie_title))
+        rmn.append(movie_title)
+    return rmn, rmp
 
 app = Flask(__name__)
 
-def recommend(movie):
-    movie_index = movies[movies['title'] == movie].index[0]
-    distances = similarity[movie_index]
-    movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+@app.route("/")
+def home():
+    return render_template("index.html")
 
-    recommended_movies = []
-    for i in movies_list:
-        recommended_movies.append(movies.iloc[i[0]].title)
-    return recommended_movies
+@app.route("/about")
+def about():
+    return render_template("about.html")
 
-# Load data and models
-movies_dict = pickle.load(open('movie_dict.pkl', 'rb'))
+@app.route("/contact")
+def contact():
+    return render_template("contact.html")
 
-# Ensure that movies_dict is a dictionary with 'title' and other relevant columns
-# Adjust the code accordingly based on the structure of movies_dict
+@app.route("/recommendation", methods=['GET', 'POST'])
+def recommendation():
+    movie_list = movies['title'].values
+    status = False
+    
+    if request.method == "POST":
+        try:
+            if request.form:
+                movies_name = request.form.get('movies')
+                rmn, rmp = recommend(movies_name)
+                status = True
+                return render_template(
+                    "recommendation.html", 
+                    movies_name=rmn, 
+                    poster=rmp, 
+                    movies_list=movie_list, 
+                    status=status,
+                    selected_movie=movies_name  # Added the selected movie to keep it selected in the dropdown
+                )
+        except Exception as e:
+            error = {"error": str(e)}
+            status = False
+            return render_template(
+                "recommendation.html", 
+                error=error, 
+                movies_list=movie_list, 
+                status=status
+            )
+    else:
+        return render_template("recommendation.html", movies_list=movie_list, status=status)
 
-# Example assumption: movies_dict has a 'title' key
-movies = pd.DataFrame(movies_dict)
-
-similarity = pickle.load(open('similarity.pkl', 'rb'))
-
-@app.route('/')
-def index():
-    return render_template('index.html', movie_titles=movies['title'].values)
-
-@app.route('/recommend', methods=['POST'])
-def get_recommendations():
-    selected_movie = request.form['selected_movie']
-    recommendations = recommend(selected_movie)
-    return render_template('recommendations.html', recommendations=recommendations)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
