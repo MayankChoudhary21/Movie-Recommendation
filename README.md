@@ -23,17 +23,17 @@ Download the dataset :https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata?s
 Movie-Recommendation/
 │
 ├── Model/
-│   ├── movies_list.pkl      # Pickle file containing the list of movie titles.
-│   └── similarity.pkl       # Pickle file containing the movie similarity matrix.
+│   ├── movies_list.pkl       
+│   └── similarity.pkl       
 │
 ├── templates/
-│   ├── index.html           # Home page template.
-│   ├── about.html           # About page template.
-│   ├── contact.html         # Contact page template.
-│   └── recommendation.html # Page for displaying movie recommendations.
+│   ├── index.html           
+│   ├── about.html           
+│   ├── contact.html        
+│   └── recommendation.html 
 │
-├── app.py                   # Main Flask application script.
-└── requirements.txt         # Python dependencies.
+├── app.py              
+└── requirements.txt        dependencies.
 
 
 
