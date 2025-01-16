@@ -17,5 +17,24 @@ This project implements a movie recommendation system using Flask, where users c
 ![image](https://github.com/user-attachments/assets/33dd9eba-7dfd-4470-9687-9621e67cb099)
 ![image](https://github.com/user-attachments/assets/1ba1522d-9200-4a2f-bacc-ccd3ee84692c)
 
+Download the dataset :https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata?select=tmdb_5000_movies.csv
+
+## Project Structure:
+Movie-Recommendation/
+│
+├── Model/
+│   ├── movies_list.pkl      # Pickle file containing the list of movie titles.
+│   └── similarity.pkl       # Pickle file containing the movie similarity matrix.
+│
+├── templates/
+│   ├── index.html           # Home page template.
+│   ├── about.html           # About page template.
+│   ├── contact.html         # Contact page template.
+│   └── recommendation.html # Page for displaying movie recommendations.
+│
+├── app.py                   # Main Flask application script.
+└── requirements.txt         # Python dependencies.
+
+
 
 
