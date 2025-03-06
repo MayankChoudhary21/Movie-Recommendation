@@ -2,4 +2,3 @@ Flask
 pandas
 requests
 gunicorn
-pickle5  
