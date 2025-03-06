@@ -21,7 +21,8 @@ Download the dataset :https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata?s
 
 ## Project Structure:
 ![WhatsApp Image 2025-01-17 at 02 35 32_68e32cd3](https://github.com/user-attachments/assets/d99dc56d-902a-4262-a580-27773fcff4d5)
-
+## Deployed Website:
+https://movie-recommendation-tstb.onrender.com/recommendation
 
 
 
