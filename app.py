@@ -7,13 +7,34 @@ import os
 # Get the base directory dynamically
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_DIR = os.path.join(BASE_DIR, "Model")  # Model files are inside the "Model" folder
+SIMILARITY_PATH = os.path.join(MODEL_DIR, "similarity.pkl")
 
-# Load movie data with corrected files
+# Ensure the Model directory exists
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# Function to download similarity.pkl from GitHub Releases if not present
+def download_similarity_pkl():
+    url = "https://github.com/MayankChoudhary21/Movie-Recommendation/releases/download/untagged-543e29e1c65b9e854d98/similarity.pkl"
+    
+    if not os.path.exists(SIMILARITY_PATH):  # Download only if not present
+        print("Downloading similarity.pkl from GitHub Releases...")
+        response = requests.get(url)
+        if response.status_code == 200:
+            with open(SIMILARITY_PATH, "wb") as f:
+                f.write(response.content)
+            print("Download complete!")
+        else:
+            print("Error downloading similarity.pkl:", response.status_code)
+
+# Download similarity.pkl if needed
+download_similarity_pkl()
+
+# Load movie data
 try:
-    movies = pickle.load(open(os.path.join(MODEL_DIR, "movies.pkl"), "rb"))  # Now using movies.pkl for movie details
-    similarity = pickle.load(open(os.path.join(MODEL_DIR, "movies_list.pkl"), "rb"))  # Using movies_list.pkl for similarity
+    movies = pickle.load(open(os.path.join(MODEL_DIR, "movies_list.pkl"), "rb"))
+    similarity = pickle.load(open(SIMILARITY_PATH, "rb"))  # Now using downloaded file
 except FileNotFoundError as e:
-    print(f"Error: {e}. Ensure that 'movies.pkl' and 'movies_list.pkl' exist in the 'Model' folder.")
+    print(f"Error: {e}. Ensure that 'movies_list.pkl' and 'similarity.pkl' exist in the 'Model' folder.")
     exit(1)
 
 # Function to fetch the movie poster
@@ -29,12 +50,8 @@ def fetch_poster(movie_name):
 # Function to recommend movies
 def recommend(Movie):
     try:
-        movies['title'] = movies['title'].str.strip().str.lower()  # Clean and lowercase titles
-        Movie = Movie.strip().lower()  # Clean input
-        
         if Movie not in movies['title'].values:
-            print(f"Movie '{Movie}' not found in dataset.")
-            return [], []  # Return empty lists if movie is not found
+            return [], []  # Return empty lists if movie not found
 
         index = movies[movies['title'] == Movie].index[0]
         sorted_movies = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
