@@ -1,129 +1,108 @@
-from flask import Flask, request, render_template
-import pickle
-import requests
+import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import streamlit as st
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import load_model
+import yfinance as yf
+import datetime
 import os
 
-# Get the base directory dynamically
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_DIR = os.path.join(BASE_DIR, "Model")  # Model files are inside the "Model" folder
-SIMILARITY_PATH = os.path.join(MODEL_DIR, "similarity.pkl")
-MOVIES_PATH = os.path.join(MODEL_DIR, "movies_list.pkl")
+st.set_page_config(page_title="Stock Predictor", layout="wide")
+st.title('📈 Stock Trend Prediction using GRU')
 
-# Ensure the Model directory exists
-os.makedirs(MODEL_DIR, exist_ok=True)
 
-# Function to download similarity.pkl from GitHub Releases if not present
-def download_similarity_pkl():
-    github_url = "https://github.com/MayankChoudhary21/Movie-Recommendation/releases/latest/download/similarity.pkl"
+@st.cache_data
+def get_sp500_tickers():
+    df = pd.read_html('https://en.wikipedia.org/wiki/List_of_S%26P_500_companies')[0]
+    df['Symbol'] = df['Symbol'].str.replace('.', '-', regex=False)
+    return sorted(df['Symbol'].tolist())
 
-    if not os.path.exists(SIMILARITY_PATH):  # Download only if not present
-        print("Downloading similarity.pkl from GitHub Releases...")
-        response = requests.get(github_url, stream=True)
-        if response.status_code == 200:
-            with open(SIMILARITY_PATH, "wb") as f:
-                for chunk in response.iter_content(chunk_size=1024):
-                    f.write(chunk)
-            print("Download complete!")
+tickers = get_sp500_tickers()
+user_input = st.selectbox("Select Stock Ticker", tickers)
+
+
+@st.cache_data
+def load_data(ticker):
+    df = yf.download(ticker, start="2010-01-01", end="2024-12-31")
+    df.reset_index(inplace=True)
+    df.set_index("Date", inplace=True)
+    return df
+
+if user_input:
+    df = load_data(user_input)
+    if not df.empty and 'Close' in df.columns:
+        close_prices = df['Close'].values.reshape(-1, 1)
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(close_prices)
+
+        X, y = [], []
+        for i in range(100, len(scaled_data)):
+            X.append(scaled_data[i - 100:i, 0])
+            y.append(scaled_data[i, 0])
+        X, y = np.array(X), np.array(y)
+        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+
+        split = int(0.7 * len(X))
+        X_train, X_test = X[:split], X[split:]
+        y_train, y_test = y[:split], y[split:]
+
+    
+        model_path = f"{user_input}_gru_model.h5"
+        if os.path.exists(model_path):
+            model = load_model(model_path)
+            y_predict = model.predict(X_test)
+            y_predict = scaler.inverse_transform(y_predict.reshape(-1, 1))
+            y_test = scaler.inverse_transform(y_test.reshape(-1, 1))
+
+            st.subheader(f"{user_input} Historical Data")
+            st.write(df.describe())
+
+            st.subheader('📊 Closing Price History')
+            fig = plt.figure(figsize=(14, 6))
+            plt.plot(df['Close'])
+            plt.ylabel('Price')
+            st.pyplot(fig)
+
+            st.subheader('📈 Moving Averages (100 & 200 Days)')
+            fig = plt.figure(figsize=(14, 6))
+            ma100 = df['Close'].rolling(100).mean()
+            ma200 = df['Close'].rolling(200).mean()
+            plt.plot(ma100, 'r', label='100-day MA')
+            plt.plot(ma200, 'g', label='200-day MA')
+            plt.plot(df['Close'], alpha=0.5, label='Closing Price')
+            plt.legend()
+            st.pyplot(fig)
+
+            st.subheader("📉 Predicted vs Actual Prices")
+            fig = plt.figure(figsize=(14, 6))
+            plt.plot(df.index[-len(y_test):], y_test, 'b', label='Actual')
+            plt.plot(df.index[-len(y_predict):], y_predict, 'r', label='Predicted')
+            plt.legend()
+            st.pyplot(fig)
+
+            st.subheader("🎯 Custom Prediction")
+            input_date = st.date_input("Prediction Date", value=datetime.date.today())
+            input_price = st.number_input("Previous Closing Price", 
+                                          value=float(df['Close'].iloc[-1]),
+                                          min_value=0.01)
+
+            if st.button("Predict Next Day Price"):
+                last_99 = scaled_data[-99:]
+                new_input = scaler.transform([[input_price]])[0][0]
+                seq = np.append(last_99, new_input).reshape(100, 1)
+                seq = np.reshape(seq, (1, 100, 1))
+
+                prediction = model.predict(seq)
+                predicted_price = scaler.inverse_transform(prediction)[0][0]
+
+                st.success(f"📅 Predicted Closing Price for {input_date.strftime('%Y-%m-%d')}: **${predicted_price:.2f}**")
+                change = ((predicted_price - input_price) / input_price) * 100
+                st.metric("Expected Change", f"{change:.2f}%", delta_color="inverse")
+
+                st.subheader("🔍 Input Sequence")
+                seq_dates = pd.date_range(end=input_date, periods=100, freq='D')
+                seq_prices = scaler.inverse_transform(seq.reshape(100, 1))
+                st.line_chart(pd.DataFrame(seq_prices, index=seq_dates, columns=['Price']))
         else:
-            print(f"Error downloading similarity.pkl: {response.status_code}")
-
-# Download similarity.pkl if needed
-download_similarity_pkl()
-
-# Load movie data
-try:
-    with open(MOVIES_PATH, "rb") as f:
-        movies = pickle.load(f)
-    with open(SIMILARITY_PATH, "rb") as f:
-        similarity = pickle.load(f)
-except FileNotFoundError as e:
-    print(f"Error: {e}. Ensure that 'movies_list.pkl' and 'similarity.pkl' exist in the 'Model' folder.")
-    exit(1)
-
-# Function to fetch the movie poster
-def fetch_poster(movie_name):
-    api_key = "450be0533dbb55a44add322a9abdbcb4"
-    url = f"https://api.themoviedb.org/3/search/movie?api_key={api_key}&query={movie_name}"
-    
-    try:
-        response = requests.get(url).json()
-        if 'results' in response and response['results']:
-            poster_path = response['results'][0].get('poster_path')
-            if poster_path:
-                return f"https://image.tmdb.org/t/p/w500{poster_path}"
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching poster: {e}")
-    
-    return "https://via.placeholder.com/500x750?text=Poster+Not+Found"
-
-# Function to recommend movies
-def recommend(Movie):
-    try:
-        if Movie not in movies['title'].values:
-            return [], []  # Return empty lists if movie not found
-
-        index = movies[movies['title'] == Movie].index[0]
-        sorted_movies = sorted(enumerate(similarity[index]), key=lambda x: x[1], reverse=True)[1:5]  # Top 4
-
-        recommended_movies = []
-        recommended_posters = []
-
-        for i in sorted_movies:
-            movie_title = movies.iloc[i[0]].title
-            recommended_posters.append(fetch_poster(movie_title))
-            recommended_movies.append(movie_title)
-
-        return recommended_movies, recommended_posters
-    except Exception as e:
-        print(f"Error in recommendation function: {e}")
-        return [], []
-
-# Flask app initialization
-app = Flask(__name__, template_folder="templates", static_folder="static")
-
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-@app.route("/about")
-def about():
-    return render_template("about.html")
-
-@app.route("/contact")
-def contact():
-    return render_template("contact.html")
-
-@app.route("/recommendation", methods=['GET', 'POST'])
-def recommendation():
-    movie_list = movies['title'].values
-    status = False
-    selected_movie = None
-
-    if request.method == "POST":
-        movie_name = request.form.get('movies')
-
-        if not movie_name:
-            return render_template(
-                "recommendation.html",
-                error="Please select a movie.",
-                movies_list=movie_list,
-                status=False
-            )
-
-        recommended_movies, recommended_posters = recommend(movie_name)
-        status = True
-        selected_movie = movie_name
-
-    return render_template(
-        "recommendation.html",
-        movies_name=recommended_movies if status else [],
-        poster=recommended_posters if status else [],
-        movies_list=movie_list,
-        status=status,
-        selected_movie=selected_movie
-    )
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Get port dynamically for Render
-    app.run(host='0.0.0.0', port=port, debug=True)
+            st.error(f"❌ Model file '{model_path}' not found! Train and save your GRU model for this ticker.")
